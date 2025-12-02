@@ -18,12 +18,14 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from items.views import PersonaPDP_ViewSet
+from API_PDP.views import PersonaPDP_ViewSet
+    
 
 # Create a router and register our viewset with it.
 router = DefaultRouter()
 router.register(r'PersonasPDP', PersonaPDP_ViewSet)
-
+router.register(r'Desplazamientos', Desplazamiento_ViewSet)
+router.register(r'Beneficiarios', Beneficiario_ViewSet)
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)), # We include the router URLs here
