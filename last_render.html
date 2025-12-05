@@ -1214,9 +1214,9 @@
     
       <!-- Second part of the line: "Ciudad" and "Fecha" -->
       <div class="label">Ciudad:</div>
-      <div class="short-space">{{ origen_destino.ciudad_origen }}</div>
+      <div class="short-space">Bogota</div>
       <div class="label inline">Fecha:</div>
-      <div class="short-space">{{ fechas.fecha_inicio }}</div>
+      <div class="short-space">2025-01-15</div>
    </div>
 </div>
 
@@ -1226,8 +1226,8 @@
         <b>UNIDAD NACIONAL DE PROTECCIÓN</b><br>
 	<b>Subdirección de protección</b><br>
 	De manera atenta le solicito tramitar el desplazamiento de las personas de protección de las uniones temporales, asignados a mi esquema. Aclaro que mi esquema 
-   <b>SI</b> <span class="shortest_space">{% if tipo_esquema.extensivo_nucleo_familiar %}X{% endif %}</span> 
-   <b>NO</b> <span class="shortest_space">{% if not tipo_esquema.extensivo_nucleo_familiar %}X{% endif %}</span> 
+   <b>SI</b> <span class="shortest_space">X</span> 
+   <b>NO</b> <span class="shortest_space"></span> 
 	es extensivo a mi núcleo familiar según resolución CERREM:
     </p>
 </div>
@@ -1241,19 +1241,19 @@
     <div class="schema-type-option">
         <b>CORPORACIÓN Y/O ASOCIACIÓN</b>
         <!-- Checkbox 1 -->
-      <div class="schema-type-box">{% if datos_esquema.nombre_corp %}X{% endif %}</div> 
+      <div class="schema-type-box">X</div> 
     </div>
 
     <div class="schema-type-option">
         <b>ESQUEMA COLECTIVO</b>
         <!-- Checkbox 2 -->
-      <div class="schema-type-box">{% if tipo_esquema.es_colectivo %}X{% endif %}</div>
+      <div class="schema-type-box"></div>
     </div>
 
     <div class="schema-type-option">
         <b>ESQUEMA INDIVIDUAL</b>
         <!-- Checkbox 3 -->
-      <div class="schema-type-box">{% if tipo_esquema.es_individual %}X{% endif %}</div>
+      <div class="schema-type-box"></div>
     </div>
 </div>
 
@@ -1279,26 +1279,26 @@
         <!-- Row 1: NOMBRE CORPORACIÓN Y/O ASOCIACIÓN -->
         <tr>
             <td style="font-size:10pt;">NOMBRE CORPORACIÓN Y/O ASOCIACIÓN<i style="font-size:7pt; height:0.38in;">(EN CASO DE QUE NO APLIQUE DEJAR EN BLANCO)</i></td>
-         <td><div class="data-field">{{ datos_esquema.nombre_corp }}</div></td>
-         <td><div class="data-field">{{ datos_esquema.nit_corp }}</div></td>
-         <td><div class="data-field">{{ datos_esquema.celular_corp }}</div></td>
-         <td><div class="data-field">{{ datos_esquema.poblacion_cerrem }}</div></td>
+         <td><div class="data-field">Corporacion Ejemplo</div></td>
+         <td><div class="data-field">900123456-7</div></td>
+         <td><div class="data-field">3001234567</div></td>
+         <td><div class="data-field">Poblacion Ejemplo</div></td>
         </tr>
         <!-- Row 2: NOMBRE REPRESENTANTE LEGAL Y/O CABEZA DE ESQUEMA -->
         <tr style="height:0.29in">
             <td style="font-size: 10pt;">NOMBRE REPRESENTANTE LEGAL Y/O CABEZA DE ESQUEMA</td>
-         <td><div class="data-field">{{ datos_esquema.nombre_rep }}</div></td>
-         <td><div class="data-field">{{ datos_esquema.cedula_rep }}</div></td>
-         <td><div class="data-field">{{ datos_esquema.celular_rep }}</div></td>
-         <td><div class="data-field">{{ datos_esquema.poblacion_cerrem_rep }}</div></td>
+         <td><div class="data-field">Juan Perez</div></td>
+         <td><div class="data-field">11223344</div></td>
+         <td><div class="data-field">3000000000</div></td>
+         <td><div class="data-field">Lider Social</div></td>
         </tr>
         <!-- Row 3: NOMBRE DEL BENEFICIARIO(A) QUE VIAJA -->
         <tr style="height:0.29in">
             <td style="font-size: 10pt;">NOMBRE DEL BENEFICIARIO(A) QUE VIAJA</td>
-         <td><div class="data-field">{{ datos_esquema.nombre_benef }}</div></td>
-         <td><div class="data-field">{{ datos_esquema.cedula_benef }}</div></td>
-         <td><div class="data-field">{{ datos_esquema.celular_benef }}</div></td>
-         <td><div class="data-field">{{ datos_esquema.poblacion_cerrem_benef }}</div></td>
+         <td><div class="data-field">Ana Gomez</div></td>
+         <td><div class="data-field">99887766</div></td>
+         <td><div class="data-field">3112223344</div></td>
+         <td><div class="data-field">Beneficiario</div></td>
         </tr>
     </tbody>
 </table>
@@ -1310,17 +1310,17 @@
     </div>
     <div class="schema-type-option">
         <b>TERRESTRE</b>
-      <div class="schema-type-box">{% if requerimientos_generales.terrestre %}X{% endif %}</div> 
+      <div class="schema-type-box">X</div> 
     </div>
 
     <div class="schema-type-option">
         <b>AEREO</b>
-      <div class="schema-type-box">{% if requerimientos_generales.aereo %}X{% endif %}</div>
+      <div class="schema-type-box">X</div>
     </div>
 
     <div class="schema-type-option">
         <b>FLUVIAL</b>
-      <div class="schema-type-box">{% if requerimientos_generales.fluvial %}X{% endif %}</div>
+      <div class="schema-type-box"></div>
     </div>
 </div>
 
@@ -1330,14 +1330,14 @@
 
   <tr style="height:0.18in;">
     <td style="width:40%; background-color: #d9d9d9;font-size: 9pt;text-align:left; padding-left:10px;"><b>CIUDAD DE ORIGEN SEGÚN CERREM</b></td>
-      <td style="width:20%;">{{ origen_destino.ciudad_origen }}</td>
+      <td style="width:20%;">Bogota</td>
     <td style="width:20%; background-color: #d9d9d9;font-size: 9pt;"><b>DEPARTAMENTO</b></td>
-      <td style="width:20%;font-size: 9pt;">{{ origen_destino.departamento_origen }}</td>
+      <td style="width:20%;font-size: 9pt;">Cundinamarca</td>
   </tr>
 
   <tr style="height:0.33in">
     <td style="width:40%;background-color: #d9d9d9; font-size: 9pt; text-align:left; padding-left:10px;"><b>CIUDADES Y/O MUNICIPIOS DE DESTINO</b></td>
-      <td colspan=3>{{ origen_destino.ciudad_destino }}</td>
+      <td colspan=3>Medellin</td>
   </tr>
 </table>
 
@@ -1347,13 +1347,13 @@
 
 <table style="height:0.27in;font-size: 9pt;">
     <td style="width:25%; background-color: #d9d9d9;text-align:left; padding-left:10px;"><b>FECHA INICIO DEL DESPLAZAMIENTO</b></td>
-   <td style="width:5%; font-size: 9pt;">{{ fechas.inicio.dia }}</td>
-   <td style="width:5%; font-size: 9pt;">{{ fechas.inicio.mes }}</td>
-   <td style="width:10%;font-size: 9pt;">{{ fechas.inicio.anio }}</td>
+   <td style="width:5%; font-size: 9pt;">15</td>
+   <td style="width:5%; font-size: 9pt;">01</td>
+   <td style="width:10%;font-size: 9pt;">2025</td>
     <td style="width:30%; background-color: #d9d9d9;text-align:left;  padding-left:10px;"><b>FECHA TERMINACIÓN DEL DESPLAZAMIENTO</b></td>
-   <td style="width:5%; font-size: 9pt;">{{ fechas.fin.dia }}</td>
-   <td style="width:5%; font-size: 9pt;">{{ fechas.fin.mes }}</td>
-   <td style="width:10%; font-size: 9pt;">{{ fechas.fin.anio }}</td>
+   <td style="width:5%; font-size: 9pt;">20</td>
+   <td style="width:5%; font-size: 9pt;">01</td>
+   <td style="width:10%; font-size: 9pt;">2025</td>
 </table>
 
 <br>
@@ -1381,16 +1381,43 @@
     <td ><b>PDP FIJA</b></td>
     <td ><b>PDP TEMPORAL</b></td>
   </tr>
-   {% for pdp in pdps %}
+   
    <tr style="height:0.18in;">
-      <td>{{ pdp.nombres_pdp }}</td>
-      <td>{{ pdp.apellidos_pdp }}</td>
-      <td>{{ pdp.cedula_pdp }}</td>
-      <td>{{ pdp.telefono_contacto }}</td>
-      <td>{% if pdp.fija %}X{% endif %}</td>
-      <td>{% if pdp.temporal %}X{% endif %}</td>
+      <td>Nombre 1</td>
+      <td>Apellido 1</td>
+      <td>10012299</td>
+      <td>300000001</td>
+      <td></td>
+      <td>X</td>
    </tr>
-   {% endfor %}
+   
+   <tr style="height:0.18in;">
+      <td>Nombre 2</td>
+      <td>Apellido 2</td>
+      <td>10022299</td>
+      <td>300000002</td>
+      <td>X</td>
+      <td></td>
+   </tr>
+   
+   <tr style="height:0.18in;">
+      <td>Nombre 3</td>
+      <td>Apellido 3</td>
+      <td>10032299</td>
+      <td>300000003</td>
+      <td></td>
+      <td>X</td>
+   </tr>
+   
+   <tr style="height:0.18in;">
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>X</td>
+      <td></td>
+   </tr>
+   
 </tbody>
 </table>
 
@@ -1418,14 +1445,35 @@ persona de protección fija releva. <b>(Indicar nombre, cédula y rango de fecha
     <td style="background-color:#d9d9d9;"><b>TELÉFONO DE CONTACTO</b></td>
   </tr>
   <!-- 5 filas para reflejar PDP si aplica -->
-   {% for pasajero in tiquetes.pasajeros %}
+   
    <tr style="height:0.18in;">
-      <td>{{ pasajero.nombres }}</td>
-      <td>{{ pasajero.apellidos }}</td>
-      <td>{{ pasajero.cedula }}</td>
-      <td>{{ pasajero.telefono_contacto }}</td>
+      <td>Nombre 1</td>
+      <td>Apellido 1</td>
+      <td>10012299</td>
+      <td>300000001</td>
    </tr>
-   {% endfor %}
+   
+   <tr style="height:0.18in;">
+      <td>Nombre 3</td>
+      <td>Apellido 3</td>
+      <td>10032299</td>
+      <td>300000003</td>
+   </tr>
+   
+   <tr style="height:0.18in;">
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+   </tr>
+   
+   <tr style="height:0.18in;">
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+   </tr>
+   
 </tbody>
 </table>
 
@@ -1446,39 +1494,39 @@ persona de protección fija releva. <b>(Indicar nombre, cédula y rango de fecha
 <tbody>
   <tr>
     <td style="font-weight: bold">IDA</td>
-      <td>{{ tiquetes.segmentos.ida.fecha }}</td>
-      <td>{{ tiquetes.segmentos.ida.hora }}</td>
-      <td>{{ tiquetes.segmentos.ida.origen }}</td>
-      <td>{{ tiquetes.segmentos.ida.destino }}</td>
-      <td>{{ tiquetes.segmentos.ida.aerolinea }}</td>
-      <td>{{ tiquetes.segmentos.ida.vuelo }}</td>
+      <td>2025-01-15</td>
+      <td>08:00</td>
+      <td>Bogota</td>
+      <td>Medellin</td>
+      <td>Avianca</td>
+      <td>AV123</td>
   </tr>
   <tr>
     <td style="font-weight: bold">CONEXIÓN</td>
-      <td>{{ tiquetes.segmentos.conexiones.0.fecha }}</td>
-      <td>{{ tiquetes.segmentos.conexiones.0.hora }}</td>
-      <td>{{ tiquetes.segmentos.conexiones.0.origen }}</td>
-      <td>{{ tiquetes.segmentos.conexiones.0.destino }}</td>
-      <td>{{ tiquetes.segmentos.conexiones.0.aerolinea }}</td>
-      <td>{{ tiquetes.segmentos.conexiones.0.vuelo }}</td>
+      <td>2025-01-15</td>
+      <td>10:00</td>
+      <td>Medellin</td>
+      <td>Quibdo</td>
+      <td>Satena</td>
+      <td>SA456</td>
   </tr>
   <tr>
     <td style="font-weight: bold">CONEXIÓN</td>
-      <td>{{ tiquetes.segmentos.conexiones.1.fecha }}</td>
-      <td>{{ tiquetes.segmentos.conexiones.1.hora }}</td>
-      <td>{{ tiquetes.segmentos.conexiones.1.origen }}</td>
-      <td>{{ tiquetes.segmentos.conexiones.1.destino }}</td>
-      <td>{{ tiquetes.segmentos.conexiones.1.aerolinea }}</td>
-      <td>{{ tiquetes.segmentos.conexiones.1.vuelo }}</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
   </tr>
   <tr>
     <td style="font-weight: bold">REGRESO</td>
-      <td>{{ tiquetes.segmentos.regreso.fecha }}</td>
-      <td>{{ tiquetes.segmentos.regreso.hora }}</td>
-      <td>{{ tiquetes.segmentos.regreso.origen }}</td>
-      <td>{{ tiquetes.segmentos.regreso.destino }}</td>
-      <td>{{ tiquetes.segmentos.regreso.aerolinea }}</td>
-      <td>{{ tiquetes.segmentos.regreso.vuelo }}</td>
+      <td>2025-01-20</td>
+      <td>14:30</td>
+      <td>Medellin</td>
+      <td>Bogota</td>
+      <td>Avianca</td>
+      <td>AV321</td>
   </tr>
 </tbody>
 </table>
