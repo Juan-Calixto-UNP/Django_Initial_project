@@ -19,10 +19,7 @@ SERVICES_DIR = BASE_DIR / '.venv'
 if str(SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(SERVICES_DIR))
 
-from services.html_rendering import (  # pylint: disable=wrong-import-position
-    DEFAULT_TEMPLATE_PATH,
-    render_desplazamiento_pdf,
-)
+import Services.formato_desplazamiento_rendering
 
 
 def _ensure_django_ready() -> None:
@@ -55,7 +52,7 @@ def _ensure_django_ready() -> None:
 def build_sample_payload() -> dict:
     """Construye un desplazamiento de ejemplo con seis PDP."""
     servicios: List[dict] = []
-    for index in range(1, 4):
+    for index in range(1, 6):
         requiere_aereo = index % 2 == 1
         servicios.append(
             {
@@ -105,11 +102,7 @@ def build_sample_payload() -> dict:
             'celular_benef': '3112223344',
             'poblacion_cerrem_benef': 'Beneficiario',
         },
-        'Requerimientos': {
-            'terrestre': True,
-            'aereo': True,
-            'fluvial': False,
-        },
+        
         'Itinerario': {
             'ciudad_origen': 'Bogota',
             'departamento_origen': 'Cundinamarca',
@@ -118,77 +111,55 @@ def build_sample_payload() -> dict:
             'fecha_salida': '2025-01-15',
             'fecha_regreso': '2025-01-20',
         },
-        'Tiquetes': {
-            'pasajeros': [
-                {
-                    'nombres': 'Carlos',
-                    'apellidos': 'Lopez',
-                    'cedula': '12345678',
-                    'telefono_contacto': '3001112233',
-                },
-                {
-                    'nombres': 'Maria',
-                    'apellidos': 'Rodriguez',
-                    'cedula': '87654321',
-                    'telefono_contacto': '3004445566',
-                },
-            ],
-            'ida': {
-                'fecha': '2025-01-15',
-                'hora': '08:00',
-                'origen': 'Bogota',
-                'destino': 'Medellin',
-                'aerolinea': 'Avianca',
-                'vuelo': 'AV123',
-            },
-            'conexiones': [
-                {
-                    'fecha': '2025-01-15',
-                    'hora': '10:00',
-                    'origen': 'Medellin',
-                    'destino': 'Quibdo',
-                    'aerolinea': 'Satena',
-                    'vuelo': 'SA456',
-                }
-            ],
-            'regreso': {
-                'fecha': '2025-01-20',
-                'hora': '14:30',
-                'origen': 'Medellin',
-                'destino': 'Bogota',
-                'aerolinea': 'Avianca',
-                'vuelo': 'AV321',
-            },
-        },
         'Servicios': servicios,
-    }
-
+        }
+        
 
 def main() -> None:
     _ensure_django_ready()
-    payload = build_sample_payload()
+    from django.http import HttpResponse
+    from django.template.loader import get_template
 
-    print('Generando PDFs de prueba...')
-    responses = render_desplazamiento_pdf(payload, template_path=DEFAULT_TEMPLATE_PATH)
-    print(f'Se generaron {len(responses)} formato(s).')
-
+    Diccionario_ejemplo = build_sample_payload()
+    
+    # Save rendered HTML for debugging
     output_dir = BASE_DIR / 'output'
     output_dir.mkdir(exist_ok=True)
-
-    for index, response in enumerate(responses, start=1):
-        disposition = response.get('Content-Disposition', '')
-        file_name = ''
-        if 'filename=' in disposition:
-            file_name = disposition.split('filename=')[-1].strip('"')
-        if not file_name:
-            file_name = f'desplazamiento_{payload.get("id", "sin_id")}_{index}.pdf'
-
-        output_path = output_dir / file_name
-        output_path.write_bytes(response.content)
-        print(f'- Archivo guardado en: {output_path}')
-
-    print('Prueba finalizada. Revise la carpeta "output" para ver los PDFs.')
-
+    
+    try:
+        html_rendered = Services.formato_desplazamiento_rendering.render_desplazamiento_pdf(Diccionario_ejemplo)
+        
+        # Save the PDF
+        pdf_path = output_dir / 'formato_desplazamiento.pdf'
+        pdf_path.write_bytes(html_rendered.content)
+        print(f'PDF generado exitosamente en: {pdf_path}')
+        
+    except Exception as e:
+        print(f'Error al generar PDF: {e}')
+        
+        # Generate HTML for debugging
+        print('\nGenerando HTML para debug...')
+        from Services.formato_desplazamiento_rendering import (
+            formatear_contexto_por_pagina,
+            determinar_cantidad_formatos,
+            get_html_template
+        )
+        
+        servicios = Diccionario_ejemplo.get('Servicios', [])
+        cantidad_formatos = determinar_cantidad_formatos(servicios)
+        
+        template = get_template(get_html_template())
+        
+        for i in range(1, cantidad_formatos + 1):
+            context = formatear_contexto_por_pagina(Diccionario_ejemplo, i, cantidad_formatos)
+            html_pagina = template.render(context)
+            
+            html_path = output_dir / f'debug_page_{i}.html'
+            html_path.write_text(html_pagina, encoding='utf-8')
+            print(f'HTML página {i} guardado en: {html_path}')
+    
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="formato_desplazamiento.pdf"'
 
 if __name__ == '__main__':
     main()
