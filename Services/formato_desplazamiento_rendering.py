@@ -142,8 +142,7 @@ def mapear_datos_pdps(servicios:list):
 
 def mapear_datos_pasajeros(servicios:list):
     '''Mapea los datos de los pasajeros a un diccionario para facilitar su uso en el template.
-    Always returns exactly 4 rows for consistency in the table.
-    Only includes PDPs that require aereo (have aereo=True in Requerimientos)'''
+    aereo=True in Requerimientos'''
     datos_pasajeros = []
     
     # Add passengers who need aerial tickets
