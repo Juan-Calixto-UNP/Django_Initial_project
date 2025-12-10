@@ -2,9 +2,8 @@ from io import BytesIO
 import math
 import os
 from django.http import HttpResponse
-from django.template.loader import get_template
-from xhtml2pdf import pisa
 from pathlib import Path
+from PyPDFForm import PdfWrapper
 #from apiDesplazamientos.models.itinerario_model import Itinerario
 #from apiDesplazamientos.models.persona_viaja_model import PersonaViaja
 #from apiDesplazamientos.models.desplazamiento_model import Desplazamiento
@@ -13,25 +12,6 @@ from pathlib import Path
 #from apiDesplazamientos.models.servicio_desplazamiento_model import ServicioDesplazamiento
 #from apiPersonasProteccion.models.personasProteccion import PersonasProteccion
 #from apiPersonasProteccion.models.serviciosPersonas import ServicioPersona
-
-
-
-'''
-def get_datos_crudos(desplazamiento_id):
-    Obtiene los objetos relacionados al desplazamiento para poder extraer la información necesaria
-    desplazamiento = Desplazamiento.objects.get(id=desplazamiento_id)
-    beneficiario = desplazamiento.beneficiario
-    servicio_desplazamiento = ServicioDesplazamiento.objects.get(desplazamiento=desplazamiento)
-    personas_proteccion = servicio_desplazamiento.servicio.fijo
-
-    itinerario = Itinerario.objects.prefetch_related(desplazamiento)
-'''
-
-def get_html_template():
-    '''Obtiene el template HTML para el formato de desplazamiento'''
-    # Django's get_template expects a path relative to template directories
-    # Since Assets is in DIRS, we just need the filename
-    return 'Formato_desplazamientos.html'
 
 
 #-----------------------------------------------------------------------------------------------------------
@@ -219,6 +199,7 @@ def mapear_datos_tiquetes_ida_regreso(servicios:list):
     
     return resultado
 
+
 def mapear_datos_conexiones(servicios:list):
     '''Mapea solo las CONEXIONES desde los servicios de una página específica
     Args:
@@ -330,112 +311,178 @@ def formatear_contexto_por_pagina(desplazamiento:dict, pagina:int, total_paginas
     return context
 
 
+def get_pdf_template_path():
+    '''Retorna la ruta al archivo PDF template'''
+    # Ajusta esta ruta según donde esté tu PDF template
+    base_path = Path(__file__).parent.parent
+    template_path = base_path / 'Assets' / 'Formato_desplazamientos.pdf'
+    return str(template_path)
+
+
+def mapear_campos_pdf(context:dict, pagina:int):
+    '''Mapea los datos del contexto a los nombres de campos del formulario PDF
+    Args:
+        context: diccionario con los datos formateados
+        pagina: número de página para incluir en campos dinámicos
+    Returns:
+        dict: diccionario con nombres de campos PDF como keys y valores correspondientes
+    '''
+    campos = {}
+    
+    # Tipo de esquema (checkboxes)
+    campos['extensivo_nucleo_familiar'] = 'X' if context['tipo_esquema']['extensivo_nucleo_familiar'] else ''
+    campos['es_colectivo'] = 'X' if context['tipo_esquema']['es_colectivo'] else ''
+    campos['es_individual'] = 'X' if context['tipo_esquema']['es_individual'] else ''
+    
+    # Datos del esquema
+    esquema = context['datos_esquema']
+    campos['nombre_corp'] = esquema['nombre_corp']
+    campos['nit_corp'] = esquema['nit_corp']
+    campos['celular_corp'] = esquema['celular_corp']
+    campos['poblacion_cerrem'] = esquema['poblacion_cerrem']
+    campos['nombre_rep'] = esquema['nombre_rep']
+    campos['cedula_rep'] = esquema['cedula_rep']
+    campos['celular_rep'] = esquema['celular_rep']
+    campos['poblacion_cerrem_rep'] = esquema['poblacion_cerrem_rep']
+    campos['nombre_benef'] = esquema['nombre_benef']
+    campos['cedula_benef'] = esquema['cedula_benef']
+    campos['celular_benef'] = esquema['celular_benef']
+    campos['poblacion_cerrem_benef'] = esquema['poblacion_cerrem_benef']
+    
+    # Requerimientos generales
+    req = context['requerimientos_generales']
+    campos['req_terrestre'] = 'X' if req['terrestre'] else ''
+    campos['req_aereo'] = 'X' if req['aereo'] else ''
+    campos['req_fluvial'] = 'X' if req['fluvial'] else ''
+    
+    # Origen y destino
+    origen_destino = context['origen_destino']
+    campos['ciudad_origen'] = origen_destino['ciudad_origen']
+    campos['departamento_origen'] = origen_destino['departamento_origen']
+    campos['ciudad_destino'] = origen_destino['ciudad_destino']
+    campos['tipo_desplazamiento'] = origen_destino['tipo']
+    
+    # Fechas
+    fechas = context['fechas']
+    campos['dia_inicio'] = str(fechas['inicio']['dia'])
+    campos['mes_inicio'] = str(fechas['inicio']['mes'])
+    campos['anio_inicio'] = str(fechas['inicio']['anio'])
+    campos['dia_fin'] = str(fechas['fin']['dia'])
+    campos['mes_fin'] = str(fechas['fin']['mes'])
+    campos['anio_fin'] = str(fechas['fin']['anio'])
+    
+    # PDPs (4 por página)
+    for i, pdp in enumerate(context['pdps'], 1):
+        campos[f'pdp_{i}_nombres'] = pdp['nombres_pdp']
+        campos[f'pdp_{i}_apellidos'] = pdp['apellidos_pdp']
+        campos[f'pdp_{i}_cedula'] = pdp['cedula_pdp']
+        campos[f'pdp_{i}_telefono'] = pdp['telefono_contacto']
+        campos[f'pdp_{i}_fija'] = 'X' if pdp['nombres_pdp'] and pdp['fija'] else ''
+        campos[f'pdp_{i}_temporal'] = 'X' if pdp['nombres_pdp'] and pdp['temporal'] else ''
+    
+    # Pasajeros (4 filas)
+    for i, pasajero in enumerate(context['tiquetes']['pasajeros'], 1):
+        campos[f'pasajero_{i}_nombres'] = pasajero['nombres']
+        campos[f'pasajero_{i}_apellidos'] = pasajero['apellidos']
+        campos[f'pasajero_{i}_cedula'] = pasajero['cedula']
+        campos[f'pasajero_{i}_telefono'] = pasajero['telefono_contacto']
+    
+    # Segmentos de vuelo (IDA, CONEXIÓN 1, CONEXIÓN 2, REGRESO)
+    segmentos = context['tiquetes']['segmentos']
+    
+    # IDA
+    campos['ida_fecha'] = segmentos['ida']['fecha']
+    campos['ida_hora'] = segmentos['ida']['hora']
+    campos['ida_origen'] = segmentos['ida']['origen']
+    campos['ida_destino'] = segmentos['ida']['destino']
+    campos['ida_aerolinea'] = segmentos['ida']['aerolinea']
+    campos['ida_vuelo'] = segmentos['ida']['vuelo']
+    
+    # CONEXIÓN 1
+    campos['conexion_1_fecha'] = segmentos['conexiones'][0]['fecha']
+    campos['conexion_1_hora'] = segmentos['conexiones'][0]['hora']
+    campos['conexion_1_origen'] = segmentos['conexiones'][0]['origen']
+    campos['conexion_1_destino'] = segmentos['conexiones'][0]['destino']
+    campos['conexion_1_aerolinea'] = segmentos['conexiones'][0]['aerolinea']
+    campos['conexion_1_vuelo'] = segmentos['conexiones'][0]['vuelo']
+    
+    # CONEXIÓN 2
+    campos['conexion_2_fecha'] = segmentos['conexiones'][1]['fecha']
+    campos['conexion_2_hora'] = segmentos['conexiones'][1]['hora']
+    campos['conexion_2_origen'] = segmentos['conexiones'][1]['origen']
+    campos['conexion_2_destino'] = segmentos['conexiones'][1]['destino']
+    campos['conexion_2_aerolinea'] = segmentos['conexiones'][1]['aerolinea']
+    campos['conexion_2_vuelo'] = segmentos['conexiones'][1]['vuelo']
+    
+    # REGRESO
+    campos['regreso_fecha'] = segmentos['regreso']['fecha']
+    campos['regreso_hora'] = segmentos['regreso']['hora']
+    campos['regreso_origen'] = segmentos['regreso']['origen']
+    campos['regreso_destino'] = segmentos['regreso']['destino']
+    campos['regreso_aerolinea'] = segmentos['regreso']['aerolinea']
+    campos['regreso_vuelo'] = segmentos['regreso']['vuelo']
+    
+    return campos
+
+
 #Función principal de renderizado del PDF
 def render_desplazamiento_pdf(desplazamiento:dict):
     '''Con el id del desplazamiento obtiene la información del beneficiario y la(s) persona(s) de protección
-    asociada(s) para generar el PDF del formato de desplazamiento'''
-
-    '''Los datos vendrán de un serializador que se espera tendrá la información de la siguiente manera:
-    desplazamiento = {
-        "id": "12345",
-        "Tipo_esquema": {
-            "extensivo_nucleo_familiar": True,
-            "es_colectivo": False,
-            "es_individual": False
-        },
-        "Datos_esquema": {
-            "nombre_corp": "Corporación Ejemplo",
-            "nit_corp": "900123456-7",
-            "celular_corp": "3001234567",
-            "poblacion_cerrem": "Población Ejemplo",
-            "nombre_rep": "Juan Pérez",
-            "cedula_rep": "12345678",
-            "celular_rep": "3007654321",
-            "poblacion_cerrem_rep": "Población Representante",
-            "nombre_benef": "Ana Gómez",
-            "cedula_benef": "87654321",
-            "celular_benef": "3001122334",
-            "poblacion_cerrem_benef": "Población Beneficiario"
-        },
-        "Servicios":[
-            {
-                "nombre_pdp": "Carlos",
-                "apellido_pdp": "López",
-                "cedula_pdp": "11223344",
-                "numero_contacto": "3009988776",
-                "fijo": True,
-                "Requerimientos": {
-                    "terrestre": True,
-                    "aereo": False,
-                    "fluvial": False
-                }
-            },
-            {
-                "nombre_pdp": "María",
-                "apellido_pdp": "Rodríguez",
-                "cedula_pdp": "55667788",
-                "numero_contacto": "3008877665",
-                "fijo": False,
-                "Requerimientos": {
-                    "terrestre": False,
-                    "aereo": True,
-                    "fluvial": False
-                },
-                "Tiquete_aereo": {
-                    "aerolinea": "Aerolínea Ejemplo",
-                    "numero_vuelo": "AE1234",
-                    "fecha_vuelo": "2024-01-16",
-                    "hora_vuelo": "10:00",
-                    "origen": "Aeropuerto Ejemplo 1",
-                    "destino": "Aeropuerto Ejemplo 2"
-                }
-            }
-        ],
-        "Itinerario": {
-            "ciudad_origen": "Bogotá",
-            "departamento_origen": "Cundinamarca",
-            "ciudad_destino": "Medellín",
-            "tipo": "Temporal",
-            "fecha_salida": "2024-01-15",
-            "fecha_regreso": "2024-01-20"
-        }
-    }'''
+    asociada(s) para generar el PDF del formato de desplazamiento usando PyPDFForm'''
 
     servicios = desplazamiento.get('Servicios', [])
     cantidad_formatos = determinar_cantidad_formatos(servicios)
     desplazamiento_id = desplazamiento.get('id', 'desconocido')
     
-    # Cargar el template HTML
-    template = get_template(get_html_template())
+    # Obtener ruta al PDF template
+    template_path = get_pdf_template_path()
     
-    # Crear el response para el PDF
+    # Verificar que existe el template
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(f"No se encuentra el PDF template en: {template_path}")
+    
+    # Lista para almacenar los PDFs generados
+    pdfs_generados = []
+    
+    # Generar un PDF por cada página necesaria
+    for pagina in range(1, cantidad_formatos + 1):
+        # Formatear el contexto para esta página
+        context = formatear_contexto_por_pagina(desplazamiento, pagina, cantidad_formatos)
+        
+        # Mapear los datos a los campos del PDF
+        campos = mapear_campos_pdf(context, pagina)
+        
+        # Cargar el template y llenar los campos
+        pdf = PdfWrapper(template_path)
+        pdf = pdf.fill(campos,flatten=True)
+        
+        # Guardar el PDF en memoria
+        pdf_stream = BytesIO()
+        pdf.write(pdf_stream)
+        pdf_stream.seek(0)
+        
+        pdfs_generados.append(pdf_stream)
+    
+    # Si hay múltiples PDFs, unirlos en uno solo
+    if len(pdfs_generados) > 1:
+        # Cargar el primer PDF
+        pdf_final = PdfWrapper(pdfs_generados[0])
+        
+        # Agregar los demás PDFs
+        for pdf_stream in pdfs_generados[1:]:
+            pdf_stream.seek(0)
+            pdf_a_agregar = PdfWrapper(pdf_stream)
+            pdf_final = pdf_final + pdf_a_agregar
+    else:
+        # Solo hay un PDF
+        pdf_final = PdfWrapper(pdfs_generados[0])
+    
+    # Crear el response HTTP con el PDF
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="desplazamiento_{desplazamiento_id}.pdf"'
     
-    # Buffer para acumular el HTML de todas las páginas
-    html_completo = ""
-    
-    # Generar el HTML para cada página
-    for i in range(1, cantidad_formatos + 1):
-        context = formatear_contexto_por_pagina(desplazamiento, i, cantidad_formatos)
-        html_pagina = template.render(context)
-        
-        # Wrap each page with proper page break for xhtml2pdf
-        if i > 1:
-            # Add page break before subsequent pages
-            html_completo += '<pdf:nextpage />'
-        
-        html_completo += html_pagina
-    
-    # Generar el PDF desde el HTML completo
-    pisa_status = pisa.CreatePDF(
-        html_completo, 
-        dest=response, 
-        encoding='UTF-8',
-        link_callback=lambda uri, rel: uri  # Simple callback for any resources
-    )
-    
-    if pisa_status.err:
-        return HttpResponse('Error generating PDF', status=500)
+    # Escribir el PDF final al response
+    pdf_final.write(response)
     
     return response
+    
