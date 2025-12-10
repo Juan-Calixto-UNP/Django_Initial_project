@@ -1,9 +1,10 @@
-from io import BytesIO
+from pathlib import Path
 import math
 import os
+import tempfile
 from django.http import HttpResponse
-from pathlib import Path
 from PyPDFForm import PdfWrapper
+
 #from apiDesplazamientos.models.itinerario_model import Itinerario
 #from apiDesplazamientos.models.persona_viaja_model import PersonaViaja
 #from apiDesplazamientos.models.desplazamiento_model import Desplazamiento
@@ -31,6 +32,7 @@ def mapear_tipo_esquema(tipo_esquema:dict):
     '''Mapea los tipos de esquema a un diccionario para facilitar su uso en el template'''
     tipos_esquema = {
         'extensivo_nucleo_familiar': tipo_esquema.get('extensivo_nucleo_familiar', False),
+        'es_corporacion': tipo_esquema.get('es_corporacion', False),
         'es_colectivo': tipo_esquema.get('es_colectivo', False),
         'es_individual': tipo_esquema.get('es_individual', False)
     }
@@ -122,16 +124,16 @@ def mapear_datos_pdps(servicios:list):
 
 def mapear_datos_pasajeros(servicios:list):
     '''Mapea los datos de los pasajeros a un diccionario para facilitar su uso en el template.
-    aereo=True in Requerimientos'''
+    Extrae pasajeros que tengan vuelos (aereo=True)'''
     datos_pasajeros = []
     
-    # Add passengers who need aerial tickets
+    # Add passengers who have vuelos (flights)
     for servicio in servicios:
-        if servicio.get('Requerimientos', {}).get('aereo', False):
+        if servicio.get('Requerimientos', {}).get('aereo', False) and servicio.get('vuelos'):
             pasajero = {
-                'nombres': servicio.get('nombre_pdp', ''),  # Template expects 'nombres' not 'nombres_pdp'
-                'apellidos': servicio.get('apellido_pdp', ''),  # Template expects 'apellidos' not 'apellidos_pdp'
-                'cedula': servicio.get('cedula_pdp', ''),  # Template expects 'cedula' not 'cedula_pdp'
+                'nombres': servicio.get('nombre_pdp', ''),
+                'apellidos': servicio.get('apellido_pdp', ''),
+                'cedula': servicio.get('cedula_pdp', ''),
                 'telefono_contacto': servicio.get('numero_contacto', '')
             }
             datos_pasajeros.append(pasajero)
@@ -149,26 +151,12 @@ def mapear_datos_pasajeros(servicios:list):
     
 
 def mapear_datos_tiquetes_ida_regreso(servicios:list):
-    '''Mapea solo IDA y REGRESO desde TODOS los servicios (para mostrar en todas las páginas)
+    '''Mapea los vuelos IDA y REGRESO desde TODOS los servicios (sin duplicados)
     Args:
         servicios: lista completa de servicios
     Returns:
         dict: diccionario con solo ida y regreso
     '''
-    # Recopilar todos los vuelos de servicios con aereo=True
-    vuelos = []
-    for servicio in servicios:
-        if servicio.get('Requerimientos', {}).get('aereo', False):
-            vuelo = {
-                'fecha': servicio.get('fecha_vuelo', ''),
-                'hora': servicio.get('hora_vuelo', ''),
-                'origen': servicio.get('origen', ''),
-                'destino': servicio.get('destino', ''),
-                'aerolinea': servicio.get('aerolinea', ''),
-                'vuelo': servicio.get('numero_vuelo', '')
-            }
-            vuelos.append(vuelo)
-    
     # Estructura base para ida y regreso
     resultado = {
         'ida': {
@@ -177,7 +165,8 @@ def mapear_datos_tiquetes_ida_regreso(servicios:list):
             'origen': '',
             'destino': '',
             'aerolinea': '',
-            'vuelo': ''
+            'vuelo': '',
+            'tipo': 'Ida'
         },
         'regreso': {
             'fecha': '',
@@ -185,17 +174,36 @@ def mapear_datos_tiquetes_ida_regreso(servicios:list):
             'origen': '',
             'destino': '',
             'aerolinea': '',
-            'vuelo': ''
+            'vuelo': '',
+            'tipo': 'Regreso'
         }
     }
     
-    # Asignar primer vuelo como IDA
-    if len(vuelos) > 0:
-        resultado['ida'] = vuelos[0]
-    
-    # Asignar último vuelo como REGRESO
-    if len(vuelos) > 1:
-        resultado['regreso'] = vuelos[-1]
+    # Buscar y asignar IDA y REGRESO de los servicios
+    for servicio in servicios:
+        vuelos = servicio.get('vuelos', [])
+        for vuelo in vuelos:
+            tipo = vuelo.get('tipo', '')
+            if tipo == 'Ida' and not resultado['ida']['vuelo']:
+                resultado['ida'] = {
+                    'fecha': vuelo.get('fecha_vuelo', ''),
+                    'hora': vuelo.get('hora_vuelo', ''),
+                    'origen': vuelo.get('origen', ''),
+                    'destino': vuelo.get('destino', ''),
+                    'aerolinea': vuelo.get('aerolinea', ''),
+                    'vuelo': vuelo.get('numero_vuelo', ''),
+                    'tipo': 'Ida'
+                }
+            elif tipo == 'Regreso' and not resultado['regreso']['vuelo']:
+                resultado['regreso'] = {
+                    'fecha': vuelo.get('fecha_vuelo', ''),
+                    'hora': vuelo.get('hora_vuelo', ''),
+                    'origen': vuelo.get('origen', ''),
+                    'destino': vuelo.get('destino', ''),
+                    'aerolinea': vuelo.get('aerolinea', ''),
+                    'vuelo': vuelo.get('numero_vuelo', ''),
+                    'tipo': 'Regreso'
+                }
     
     return resultado
 
@@ -207,19 +215,22 @@ def mapear_datos_conexiones(servicios:list):
     Returns:
         list: lista con hasta 2 conexiones
     '''
-    # Recopilar vuelos de servicios con aereo=True de esta página
-    vuelos = []
+    # Recopilar vuelos de tipo CONEXIÓN de esta página
+    conexiones_data = []
     for servicio in servicios:
-        if servicio.get('Requerimientos', {}).get('aereo', False):
-            vuelo = {
-                'fecha': servicio.get('fecha_vuelo', ''),
-                'hora': servicio.get('hora_vuelo', ''),
-                'origen': servicio.get('origen', ''),
-                'destino': servicio.get('destino', ''),
-                'aerolinea': servicio.get('aerolinea', ''),
-                'vuelo': servicio.get('numero_vuelo', '')
-            }
-            vuelos.append(vuelo)
+        vuelos = servicio.get('vuelos', [])
+        for vuelo in vuelos:
+            if vuelo.get('tipo') == 'Conexion':
+                conexion = {
+                    'fecha': vuelo.get('fecha_vuelo', ''),
+                    'hora': vuelo.get('hora_vuelo', ''),
+                    'origen': vuelo.get('origen', ''),
+                    'destino': vuelo.get('destino', ''),
+                    'aerolinea': vuelo.get('aerolinea', ''),
+                    'vuelo': vuelo.get('numero_vuelo', ''),
+                    'tipo': 'Conexion'
+                }
+                conexiones_data.append(conexion)
     
     # Estructura base para conexiones (siempre 2 slots)
     conexiones = [
@@ -229,7 +240,8 @@ def mapear_datos_conexiones(servicios:list):
             'origen': '',
             'destino': '',
             'aerolinea': '',
-            'vuelo': ''
+            'vuelo': '',
+            'tipo': 'Conexion'
         },
         {
             'fecha': '',
@@ -237,14 +249,15 @@ def mapear_datos_conexiones(servicios:list):
             'origen': '',
             'destino': '',
             'aerolinea': '',
-            'vuelo': ''
+            'vuelo': '',
+            'tipo': 'Conexion'
         }
     ]
     
     # Asignar vuelos como conexiones (hasta 2)
-    for i, vuelo in enumerate(vuelos):
+    for i, conexion_data in enumerate(conexiones_data):
         if i < 2:
-            conexiones[i] = vuelo
+            conexiones[i] = conexion_data
     
     return conexiones
 
@@ -315,7 +328,7 @@ def get_pdf_template_path():
     '''Retorna la ruta al archivo PDF template'''
     # Ajusta esta ruta según donde esté tu PDF template
     base_path = Path(__file__).parent.parent
-    template_path = base_path / 'Assets' / 'Formato_desplazamientos.pdf'
+    template_path = base_path / 'Assets' / 'Formato_desplazamiento_fillable.pdf'
     return str(template_path)
 
 
@@ -329,103 +342,123 @@ def mapear_campos_pdf(context:dict, pagina:int):
     '''
     campos = {}
     
+    campos['Ciudad'] = context['origen_destino']['ciudad_origen']
+    campos['Fecha'] = context['fechas']['fecha_inicio']
+
+    campos['Esquema_extensivo_Si'] = 'X' if context['tipo_esquema']['extensivo_nucleo_familiar'] else ''
+    campos['Esquema_extensivo_No'] = '' if context['tipo_esquema']['extensivo_nucleo_familiar'] else 'X'
+
     # Tipo de esquema (checkboxes)
-    campos['extensivo_nucleo_familiar'] = 'X' if context['tipo_esquema']['extensivo_nucleo_familiar'] else ''
-    campos['es_colectivo'] = 'X' if context['tipo_esquema']['es_colectivo'] else ''
-    campos['es_individual'] = 'X' if context['tipo_esquema']['es_individual'] else ''
+    campos['Corporacion'] = 'X' if context['tipo_esquema']['es_corporacion'] else ''
+    campos['Colectivo'] = 'X' if context['tipo_esquema']['es_colectivo'] else ''
+    campos['Individual'] = 'X' if context['tipo_esquema']['es_individual'] else ''
     
     # Datos del esquema
     esquema = context['datos_esquema']
-    campos['nombre_corp'] = esquema['nombre_corp']
-    campos['nit_corp'] = esquema['nit_corp']
-    campos['celular_corp'] = esquema['celular_corp']
-    campos['poblacion_cerrem'] = esquema['poblacion_cerrem']
-    campos['nombre_rep'] = esquema['nombre_rep']
-    campos['cedula_rep'] = esquema['cedula_rep']
-    campos['celular_rep'] = esquema['celular_rep']
-    campos['poblacion_cerrem_rep'] = esquema['poblacion_cerrem_rep']
-    campos['nombre_benef'] = esquema['nombre_benef']
-    campos['cedula_benef'] = esquema['cedula_benef']
-    campos['celular_benef'] = esquema['celular_benef']
-    campos['poblacion_cerrem_benef'] = esquema['poblacion_cerrem_benef']
+    campos['Nombre corp'] = esquema['nombre_corp']
+    campos['NIT corp'] = esquema['nit_corp']
+    campos['Celular corp'] = esquema['celular_corp']
+    campos['Poblacion CERREM'] = esquema['poblacion_cerrem']
+    campos['Nombre rep'] = esquema['nombre_rep']
+    campos['Cedula rep'] = esquema['cedula_rep']
+    campos['Celular rep'] = esquema['celular_rep']
+    campos['Poblacion CERREM rep'] = esquema['poblacion_cerrem']
+    campos['Nombre bnf'] = esquema['nombre_benef']
+    campos['Cedula bnf'] = esquema['cedula_benef']
+    campos['Celular bnf'] = esquema['celular_benef']
+    campos['Poblacion CERREM'] = esquema['poblacion_cerrem']
     
     # Requerimientos generales
     req = context['requerimientos_generales']
-    campos['req_terrestre'] = 'X' if req['terrestre'] else ''
-    campos['req_aereo'] = 'X' if req['aereo'] else ''
-    campos['req_fluvial'] = 'X' if req['fluvial'] else ''
+    campos['Terrestre'] = 'X' if req['terrestre'] else ''
+    campos['Aereo'] = 'X' if req['aereo'] else ''
+    campos['Fluvial'] = 'X' if req['fluvial'] else ''
     
     # Origen y destino
     origen_destino = context['origen_destino']
-    campos['ciudad_origen'] = origen_destino['ciudad_origen']
-    campos['departamento_origen'] = origen_destino['departamento_origen']
-    campos['ciudad_destino'] = origen_destino['ciudad_destino']
+    campos['Ciudad_origen_CERREM'] = origen_destino['ciudad_origen']
+    campos['Departamento_origen_CERREM'] = origen_destino['departamento_origen']
+    campos['Ciudades_municipios_destino'] = origen_destino['ciudad_destino']
     campos['tipo_desplazamiento'] = origen_destino['tipo']
     
     # Fechas
     fechas = context['fechas']
-    campos['dia_inicio'] = str(fechas['inicio']['dia'])
-    campos['mes_inicio'] = str(fechas['inicio']['mes'])
-    campos['anio_inicio'] = str(fechas['inicio']['anio'])
-    campos['dia_fin'] = str(fechas['fin']['dia'])
-    campos['mes_fin'] = str(fechas['fin']['mes'])
-    campos['anio_fin'] = str(fechas['fin']['anio'])
+    campos['Dia_inicio'] = str(fechas['inicio']['dia'])
+    campos['Mes_inicio'] = str(fechas['inicio']['mes'])
+    campos['Anio_inicio'] = str(fechas['inicio']['anio'])
+    campos['Dia_fin'] = str(fechas['fin']['dia'])
+    campos['Mes_fin'] = str(fechas['fin']['mes'])
+    campos['Anio_fin'] = str(fechas['fin']['anio'])
     
     # PDPs (4 por página)
     for i, pdp in enumerate(context['pdps'], 1):
-        campos[f'pdp_{i}_nombres'] = pdp['nombres_pdp']
-        campos[f'pdp_{i}_apellidos'] = pdp['apellidos_pdp']
-        campos[f'pdp_{i}_cedula'] = pdp['cedula_pdp']
-        campos[f'pdp_{i}_telefono'] = pdp['telefono_contacto']
-        campos[f'pdp_{i}_fija'] = 'X' if pdp['nombres_pdp'] and pdp['fija'] else ''
-        campos[f'pdp_{i}_temporal'] = 'X' if pdp['nombres_pdp'] and pdp['temporal'] else ''
+        campos[f'Nombre_pdp{i}'] = pdp['nombres_pdp']
+        campos[f'Apellido_pdp{i}'] = pdp['apellidos_pdp']
+        campos[f'Cedula_pdp{i}'] = pdp['cedula_pdp']
+        campos[f'Telefono_pdp{i}'] = pdp['telefono_contacto']
+        campos[f'Fija_pdp{i}'] = 'X' if pdp['nombres_pdp'] and pdp['fija'] else ''
+        campos[f'Temporal_pdp{i}'] = 'X' if pdp['nombres_pdp'] and pdp['temporal'] else ''
     
     # Pasajeros (4 filas)
     for i, pasajero in enumerate(context['tiquetes']['pasajeros'], 1):
-        campos[f'pasajero_{i}_nombres'] = pasajero['nombres']
-        campos[f'pasajero_{i}_apellidos'] = pasajero['apellidos']
-        campos[f'pasajero_{i}_cedula'] = pasajero['cedula']
-        campos[f'pasajero_{i}_telefono'] = pasajero['telefono_contacto']
+        campos[f'Nombre_pasajero{i}'] = pasajero['nombres']
+        campos[f'Apellido_pasajero{i}'] = pasajero['apellidos']
+        campos[f'Cedula_pasajero{i}'] = pasajero['cedula']
+        campos[f'Telefono_pasajero{i}'] = pasajero['telefono_contacto']
     
     # Segmentos de vuelo (IDA, CONEXIÓN 1, CONEXIÓN 2, REGRESO)
     segmentos = context['tiquetes']['segmentos']
-    
+
     # IDA
-    campos['ida_fecha'] = segmentos['ida']['fecha']
-    campos['ida_hora'] = segmentos['ida']['hora']
-    campos['ida_origen'] = segmentos['ida']['origen']
-    campos['ida_destino'] = segmentos['ida']['destino']
-    campos['ida_aerolinea'] = segmentos['ida']['aerolinea']
-    campos['ida_vuelo'] = segmentos['ida']['vuelo']
+    campos['Fecha_ida'] = segmentos['ida']['fecha']
+    campos['Hora_ida'] = segmentos['ida']['hora']
+    campos['Origen_ida'] = segmentos['ida']['origen']
+    campos['Destino_ida'] = segmentos['ida']['destino']
+    campos['Aereolinea_ida'] = segmentos['ida']['aerolinea']
+    campos['Vuelo_ida'] = segmentos['ida']['vuelo']
     
-    # CONEXIÓN 1
-    campos['conexion_1_fecha'] = segmentos['conexiones'][0]['fecha']
-    campos['conexion_1_hora'] = segmentos['conexiones'][0]['hora']
-    campos['conexion_1_origen'] = segmentos['conexiones'][0]['origen']
-    campos['conexion_1_destino'] = segmentos['conexiones'][0]['destino']
-    campos['conexion_1_aerolinea'] = segmentos['conexiones'][0]['aerolinea']
-    campos['conexion_1_vuelo'] = segmentos['conexiones'][0]['vuelo']
-    
-    # CONEXIÓN 2
-    campos['conexion_2_fecha'] = segmentos['conexiones'][1]['fecha']
-    campos['conexion_2_hora'] = segmentos['conexiones'][1]['hora']
-    campos['conexion_2_origen'] = segmentos['conexiones'][1]['origen']
-    campos['conexion_2_destino'] = segmentos['conexiones'][1]['destino']
-    campos['conexion_2_aerolinea'] = segmentos['conexiones'][1]['aerolinea']
-    campos['conexion_2_vuelo'] = segmentos['conexiones'][1]['vuelo']
+    for i, conexion in enumerate(segmentos['conexiones'], 1):
+        campos[f'Fecha_conexion{i}'] = conexion['fecha']
+        campos[f'Hora_conexion{i}'] = conexion['hora']
+        campos[f'Origen_conexion{i}'] = conexion['origen']
+        campos[f'Destino_conexion{i}'] = conexion['destino']
+        campos[f'Aereolinea_conexion{i}'] = conexion['aerolinea']
+        campos[f'Vuelo_conexion{i}'] = conexion['vuelo']
     
     # REGRESO
-    campos['regreso_fecha'] = segmentos['regreso']['fecha']
-    campos['regreso_hora'] = segmentos['regreso']['hora']
-    campos['regreso_origen'] = segmentos['regreso']['origen']
-    campos['regreso_destino'] = segmentos['regreso']['destino']
-    campos['regreso_aerolinea'] = segmentos['regreso']['aerolinea']
-    campos['regreso_vuelo'] = segmentos['regreso']['vuelo']
+    campos['Fecha_regreso'] = segmentos['regreso']['fecha']
+    campos['Hora_regreso'] = segmentos['regreso']['hora']
+    campos['Origen_regreso'] = segmentos['regreso']['origen']
+    campos['Destino_regreso'] = segmentos['regreso']['destino']
+    campos['Aereolinea_regreso'] = segmentos['regreso']['aerolinea']
+    campos['Vuelo_regreso'] = segmentos['regreso']['vuelo']
     
+
     return campos
 
 
 #Función principal de renderizado del PDF
+def unir_pdfs_temporales(rutas_pdfs:list):
+    '''Une múltiples PDFs desde archivos temporales en un solo PDF
+    Args:
+        rutas_pdfs: lista de rutas a archivos PDF generados
+    Returns:
+        PdfWrapper: objeto PDF unido
+    '''
+    if not rutas_pdfs:
+        raise ValueError("No hay PDFs para unir")
+    
+    # Cargar el primer PDF
+    pdf_final = PdfWrapper(rutas_pdfs[0])
+    
+    # Unir los demás PDFs
+    for ruta_pdf in rutas_pdfs[1:]:
+        pdf_a_agregar = PdfWrapper(ruta_pdf)
+        pdf_final = pdf_final + pdf_a_agregar
+    
+    return pdf_final
+
+
 def render_desplazamiento_pdf(desplazamiento:dict):
     '''Con el id del desplazamiento obtiene la información del beneficiario y la(s) persona(s) de protección
     asociada(s) para generar el PDF del formato de desplazamiento usando PyPDFForm'''
@@ -441,48 +474,46 @@ def render_desplazamiento_pdf(desplazamiento:dict):
     if not os.path.exists(template_path):
         raise FileNotFoundError(f"No se encuentra el PDF template en: {template_path}")
     
-    # Lista para almacenar los PDFs generados
-    pdfs_generados = []
+    # Lista para almacenar las rutas de los PDFs temporales generados
+    rutas_pdfs_temporales = []
     
-    # Generar un PDF por cada página necesaria
-    for pagina in range(1, cantidad_formatos + 1):
-        # Formatear el contexto para esta página
-        context = formatear_contexto_por_pagina(desplazamiento, pagina, cantidad_formatos)
+    try:
+        # Generar un PDF por cada página necesaria
+        for pagina in range(1, cantidad_formatos + 1):
+            # Formatear el contexto para esta página
+            context = formatear_contexto_por_pagina(desplazamiento, pagina, cantidad_formatos)
+            
+            # Mapear los datos a los campos del PDF
+            campos = mapear_campos_pdf(context, pagina)
+            
+            # Cargar el template y llenar los campos
+            pdf = PdfWrapper(template_path)
+            pdf = pdf.fill(campos, flatten=True)
+            
+            # Guardar el PDF en un archivo temporal
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf', dir=None) as tmp_file:
+                pdf.write(tmp_file.name)
+                rutas_pdfs_temporales.append(tmp_file.name)
         
-        # Mapear los datos a los campos del PDF
-        campos = mapear_campos_pdf(context, pagina)
+        # Unir los PDFs si hay múltiples
+        if len(rutas_pdfs_temporales) > 1:
+            pdf_final = unir_pdfs_temporales(rutas_pdfs_temporales)
+        else:
+            # Solo hay un PDF
+            pdf_final = PdfWrapper(rutas_pdfs_temporales[0])
         
-        # Cargar el template y llenar los campos
-        pdf = PdfWrapper(template_path)
-        pdf = pdf.fill(campos,flatten=True)
-        
-        # Guardar el PDF en memoria
-        pdf_stream = BytesIO()
-        pdf.write(pdf_stream)
-        pdf_stream.seek(0)
-        
-        pdfs_generados.append(pdf_stream)
+        # Crear el response HTTP con el PDF
+        merged = pdf_final
+
+        merged.write("Formato_desplazamiento_llenado.pdf")
+
+        return merged
     
-    # Si hay múltiples PDFs, unirlos en uno solo
-    if len(pdfs_generados) > 1:
-        # Cargar el primer PDF
-        pdf_final = PdfWrapper(pdfs_generados[0])
-        
-        # Agregar los demás PDFs
-        for pdf_stream in pdfs_generados[1:]:
-            pdf_stream.seek(0)
-            pdf_a_agregar = PdfWrapper(pdf_stream)
-            pdf_final = pdf_final + pdf_a_agregar
-    else:
-        # Solo hay un PDF
-        pdf_final = PdfWrapper(pdfs_generados[0])
-    
-    # Crear el response HTTP con el PDF
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="desplazamiento_{desplazamiento_id}.pdf"'
-    
-    # Escribir el PDF final al response
-    pdf_final.write(response)
-    
-    return response
-    
+    finally:
+        # Limpiar los archivos temporales
+        for ruta in rutas_pdfs_temporales:
+            try:
+                if os.path.exists(ruta):
+                    os.remove(ruta)
+            except Exception as e:
+                print(f"Error al eliminar archivo temporal {ruta}: {e}")
